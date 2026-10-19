@@ -1,14 +1,30 @@
 ![GitHub release (latest by date)](https://img.shields.io/github/v/release/dan-snelson/Microsoft-365-Reset?display_name=tag) ![GitHub issues](https://img.shields.io/github/issues-raw/dan-snelson/Microsoft-365-Reset) ![GitHub closed issues](https://img.shields.io/github/issues-closed-raw/dan-snelson/Microsoft-365-Reset) ![GitHub pull requests](https://img.shields.io/github/issues-pr-raw/dan-snelson/Microsoft-365-Reset) ![GitHub closed pull requests](https://img.shields.io/github/issues-pr-closed-raw/dan-snelson/Microsoft-365-Reset) [![swiftDialog](https://img.shields.io/badge/swiftDialog-Enabled-blue)](https://swiftdialog.app) [![Semgrep Security Scan](https://img.shields.io/badge/security%20scanned%20by-Semgrep-00C7B7?style=flat&logo=semgrep&logoColor=white)](https://semgrep.dev)
 
-# Microsoft 365 Reset (1.3.0)
+# Microsoft 365 Reset (2.0.1)
 
-<img src="images/Microsoft_365_Reset_Hero.png" alt="Version 1.3.0" width="600" />
+<img src="images/Microsoft_365_Reset_Hero.jpg" alt="Microsoft 365 Reset" width="600" />
 
 Unified `zsh` script to repair, reset, or remove Microsoft 365 components on macOS:
 
 - Script: [`Microsoft-365-Reset.zsh`](Microsoft-365-Reset.zsh)
 - Release notes: [`CHANGELOG.md`](CHANGELOG.md)
 - Original package-era reference: [Microsoft 365 Reset (2.0.0b1) via Jamf Pro Self Service](https://snelson.us/2023/12/microsoft-365-reset-2-0-0/)
+
+> [!CAUTION]
+> **This is a potentially destructive script.** It runs as `root` and — depending on the operations selected — it can:
+>
+> - **Permanently delete local data:** Outlook mailbox data, OneNote content that has not synced to the cloud, Office templates and preferences, and sign-in items in the user's keychain
+> - **Remove security tooling:** `remove_defender` uninstalls Microsoft Defender
+> - **Remove every Microsoft 365 app:** `remove_office` also deletes local Outlook profile data, managed preferences, and the shared `/Library/Logs/Microsoft` folder, which other Microsoft products (for example, Defender and Intune) also write to
+> - **Force-quit Microsoft apps:** unsaved work in Word, Excel, PowerPoint, Outlook, OneNote, OneDrive, and Teams is lost; interactive modes tell the user to save first; `silent` runs **give no warning**
+>
+> **There is no undo.** Apps can be reinstalled and caches rebuild themselves, but deleted mail, unsynced notes, keychain items, and removed security tooling need separate recovery.
+>
+> - `test` mode is **not** a dry-run; it performs _real_ operations
+> - `silent` mode shows no dialogs and skips the destructive-action confirmation
+> - `self-service` refuses to run without an explicit `--operations` / `$5` allowlist unless `--allow-all-operations` / `$6` is set
+>
+> Test in a lab or on a VM — first confirming known-working backups — before broad deployment.
 
 ## What It Does
 
@@ -26,12 +42,13 @@ The script consolidates expanded package workflows into one root-run tool with:
 
 - Separate `reset_license` and `reset_credentials` operations align with MOFA's separate license-only and broader sign-in reset flows
 - App repair/reinstall flows for Word, Excel, PowerPoint, Outlook, and OneNote stop after repair without continuing into configuration cleanup, matching current MOFA behavior
-- Teams background preservation, TCC reset, and retention of a valid current Teams app bundle align with current MOFA behavior
+- Teams background preservation (destination folders created in the console user's context), TCC reset, and retention of a valid current Teams app bundle align with current MOFA behavior
+- `remove_office` removes only the Office-owned children of `/Library/Application Support/Microsoft` (`MAU2.0`, `MERP2.0`, `Office365`) and no longer forgets the Defender (`com.microsoft.wdav`) package receipt, matching current MOFA Office Removal; like MOFA, it still removes `/Library/Logs/Microsoft` and `~/Library/Application Support/Microsoft`
 
 Intentional divergences from current MOFA behavior:
 
-- `reset_factory` performs its own MOFA-style suite cleanup in addition to dependency expansion
-- `reset_teams` suppresses Screen Recording settings in `silent` mode, preserves classic and work-or-school Teams bundles during a standard reset, and does not install current Teams when its main app bundle is absent
+- `reset_factory` directly performs MOFA-aligned suite cleanup and intentionally adds package-era dependency expansion; it leaves profile-delivered `/Library/Managed Preferences` files in place (no reset operation removes them; only `remove_office` does)
+- `reset_teams` suppresses Screen Recording settings in `silent` mode, preserves classic and work-or-school Teams bundles during a standard reset, does not install current Teams when its main app bundle is absent, and stops before cleanup when Teams backgrounds cannot be archived or staged (backgrounds under a symlinked parent directory are skipped with a `WARNING` and cleanup continues); backgrounds are archived, staged in the console user's home folder, and restored as the console user instead of in a fixed `/tmp` path
 - AutoUpdate registration treats new Teams as the current `TEAMS21` product while keeping classic Teams on the legacy product ID
 
 Repo-local operations without current MOFA community-script equivalents:
@@ -43,38 +60,39 @@ Repo-local operations without current MOFA community-script equivalents:
 
 <table>
   <tr>
-    <td><img src="images/M365R-00001.png" alt="M365R-00001"></td>
-    <td><img src="images/M365R-00002.png" alt="M365R-00002"></td>
-    <td><img src="images/M365R-00003.png" alt="M365R-00003"></td>
+    <td><img src="images/M365R-00001.png" alt="Welcome"></td>
+    <td><img src="images/M365R-00002.png" alt="Selection (all disabled)"></td>
+    <td><img src="images/M365R-00003.png" alt="Selection (one selected)"></td>
   </tr>
   <tr>
-    <td><img src="images/M365R-00004.png" alt="M365R-00004"></td>
-    <td><img src="images/M365R-00005.png" alt="M365R-00005"></td>
-    <td><img src="images/M365R-00006.png" alt="M365R-00006"></td>
+    <td><img src="images/M365R-00004.png" alt="Confirm Destructive Actions (prompt)"></td>
+    <td><img src="images/M365R-00005.png" alt="Confirm Destructive Actions (accepted)"></td>
+    <td><img src="images/M365R-00006.png" alt="Operation in progress"></td>
   </tr>
   <tr>
-    <td><img src="images/M365R-00007.png" alt="M365R-00007"></td>
-    <td><img src="images/M365R-00008.png" alt="M365R-00008"></td>
-    <td><img src="images/M365R-00009.png" alt="M365R-00009"></td>
+    <td><img src="images/M365R-00007.png" alt="Operation completed"></td>
+    <td><img src="images/M365R-00008.png" alt="Restart Recommended"></td>
+    <td><img src="images/M365R-00009.png" alt="Are you sure you want to restart your computer now?"></td>
   </tr>
 </table>
 
 ## Requirements
 
-- macOS with `zsh`
 - Root execution (`sudo` or MDM root context)
 - Active non-root console user session (script exits during preflight if none is detected)
 - Network access for swiftDialog install/upgrade in interactive modes and Microsoft package download during auto-repair operations
 - Built-in tools used by the script (`security`, `defaults`, `pkgutil`, `installer`, `codesign`, `sqlite3`, `nscurl`, etc.)
+- Full Disk Access for your management agent (for example, the Jamf Pro binary via a PPPC profile) so macOS privacy protections do not block cleanup inside app containers; any path an operation cannot remove fails that operation (exit `20`)
+- In interactive modes, swiftDialog must resolve from `/usr/local/bin/dialog` into `/Library/Application Support/Dialog/Dialog.app/Contents/MacOS/`, be root-owned and not group/other-writable, and be signed by Team ID `PWA5E9TQ59`; otherwise the script reinstalls swiftDialog once, then exits `10` if validation still fails
 
 Important:
 
-- Default log path is `/var/log/org.churchofjesuschrist.log` and requires root.
+- Default log path is `/var/log/org.churchofjesuschrist.log` and requires root; edit the `scriptLog` variable for your environment
 
 ## Usage
 
 ```bash
-sudo ./Microsoft-365-Reset.zsh [--mode MODE] [--operations CSV]
+sudo ./Microsoft-365-Reset.zsh [--mode MODE] [--operations CSV] [--allow-all-operations]
 ```
 
 ### Arguments
@@ -82,7 +100,8 @@ sudo ./Microsoft-365-Reset.zsh [--mode MODE] [--operations CSV]
 | Argument | Default | Description |
 |---|---|---|
 | `--mode` | `self-service` | `self-service`, `silent`, `test`, `debug` |
-| `--operations` | empty | Comma-separated operation IDs; required for `silent`, and constrains interactive chooser options in `self-service`, `test`, and `debug` when provided |
+| `--operations` | empty | Comma-separated operation IDs; required for `silent` and (unless `--allow-all-operations` is set) `self-service`, and constrains interactive chooser options in `self-service`, `test`, and `debug`. When empty in `self-service` without the opt-in, the script exits `10` before showing any dialog. When empty in `test` or `debug`, or in opted-in `self-service`, all operations are shown and a `WARNING` is logged |
+| `--allow-all-operations` | off | Opt-in for deliberately broad, admin-only `self-service` policies: allows an empty allowlist, which shows all operations, including `remove_office` and `remove_defender` |
 
 Checkbox style is hard-coded to `switch,large` in the interactive selection UI, and each option includes its own operation icon.
 
@@ -94,44 +113,47 @@ The script also reads Jamf-style parameters:
 |---|---|
 | `$4` | mode |
 | `$5` | operations CSV |
+| `$6` | allow all operations (`true` / `yes` / `1`; anything else is `false`) |
 
-CLI flags (`--mode`, `--operations`) override these values when both are present. The parser tolerates up to five leading positional arguments for Jamf-style execution before the first CLI flag, which covers Jamf's `$1-$3` placeholders plus `$4`/`$5`. Unexpected bare positional arguments after a CLI flag still fail validation.
+CLI flags (`--mode`, `--operations`, `--allow-all-operations`) override these values when both are present. The parser tolerates leading positional arguments for Jamf-style execution before the first CLI flag, which covers Jamf's `$1-$3` placeholders plus `$4`-`$6`. Unexpected bare positional arguments after a CLI flag still fail validation.
 
 ## Modes
 
 | Mode | Behavior |
 |---|---|
-| `self-service` | Full interactive flow (intro, selection, destructive confirmation, resolved-operation progress summary, completion); when `--operations`/`$5` is provided, the selection dialog shows only those operation IDs |
-| `test` | Interactive flow, useful for operator testing; honors `--operations`/`$5` as chooser constraint when provided |
-| `debug` | Interactive flow + `set -x`; honors `--operations`/`$5` as chooser constraint when provided |
-| `silent` | No dialogs; operations must be provided via `--operations`/`$5` |
+| `self-service` | Full interactive flow (intro, selection, destructive confirmation, resolved-operation progress summary, completion); requires `--operations`/`$5`, and the selection dialog shows only those operation IDs; exits `10` when the allowlist is empty unless `--allow-all-operations`/`$6` is set |
+| `test` | Interactive flow for operator testing; **not a dry run** — selected operations really run; honors `--operations`/`$5` as chooser constraint when provided |
+| `debug` | Interactive flow + `set -x` with a timestamped `PS4`; xtrace is suspended inside keychain-deletion, Microsoft package-install, and swiftDialog-install helpers; honors `--operations`/`$5` as chooser constraint when provided |
+| `silent` | No dialogs and **no destructive-action confirmation**; Microsoft apps are force-quit without warning; operations must be provided via `--operations`/`$5` |
 
 ## Supported Operations
 
 Use these IDs in `--operations` CSV for silent execution or interactive chooser filtering:
 
-| ID | Purpose |
-|---|---|
-| `reset_factory` | Stop Office/Microsoft services and prime factory reset dependency set; dependent app resets also defer same-run cleanup when a repair occurs |
-| `reset_word` | Word repair/reinstall when needed, or Word config/template cleanup when no repair occurs |
-| `reset_excel` | Excel repair/reinstall when needed, or Excel config/template cleanup when no repair occurs |
-| `reset_powerpoint` | PowerPoint repair/reinstall when needed, or template/theme/add-in cleanup when no repair occurs |
-| `reset_outlook` | Outlook repair/reinstall when needed, or Outlook config/keychain cleanup when no repair occurs |
-| `remove_outlook_data` | Remove Outlook local mailbox profile/data |
-| `reset_onenote` | OneNote repair/reinstall when needed, or container/group cleanup when no repair occurs |
-| `remove_onenote_data` | Remove OneNote cached local data |
-| `reset_onedrive` | OneDrive repair checks + cache/container/keychain cleanup |
-| `reset_teams` | Teams reset with installed-app validation/repair + Teams cache/container/keychain cleanup; leaves current Teams absent when no main app bundle exists |
-| `reset_teams_force` | Force-remove installed Teams variants, install current Teams even when its main bundle was absent, then perform Teams cache/container/keychain cleanup |
-| `reset_autoupdate` | Reset MAU prefs/cache and reinstall/update MAU when applicable |
-| `reset_license` | Reset Office licensing files and core Office identity data |
-| `reset_credentials` | Remove Office licensing/sign-in artifacts and token/keychain data |
-| `remove_office` | Full Microsoft 365 removal workflow |
-| `remove_skypeforbusiness` | Remove Skype for Business app/data/keychain entries |
-| `remove_defender` | Remove Microsoft Defender app/data/receipts |
-| `remove_acrobat_addin` | Remove Adobe Acrobat add-in payloads from Word, Excel, and PowerPoint startup folders in both system and user Office content paths |
-| `remove_zoomplugin` | Remove Zoom Outlook plugin and related metadata |
-| `remove_webexpt` | Remove WebEx Productivity Tools and related metadata |
+Impact key: **Reset** = removes caches, settings, or sign-in state that rebuild or can be re-entered; **Removal** = uninstalls an app or add-in that can be reinstalled; **Data loss** = permanently deletes local user data; **Security** = removes security tooling.
+
+| ID | Impact | Purpose |
+|---|---|---|
+| `reset_factory` | Reset | Stop Office/Microsoft services and prime factory reset dependency set; dependent app resets also defer same-run cleanup when a repair occurs |
+| `reset_word` | Reset | Word repair/reinstall when needed, or Word config/template cleanup when no repair occurs |
+| `reset_excel` | Reset | Excel repair/reinstall when needed, or Excel config/template cleanup when no repair occurs |
+| `reset_powerpoint` | Reset | PowerPoint repair/reinstall when needed, or template/theme/add-in cleanup when no repair occurs |
+| `reset_outlook` | Reset | Outlook repair/reinstall when needed, or Outlook config/keychain cleanup when no repair occurs |
+| `remove_outlook_data` | **Data loss** | Remove Outlook local mailbox profile/data |
+| `reset_onenote` | Reset | OneNote repair/reinstall when needed, or container/group cleanup when no repair occurs |
+| `remove_onenote_data` | **Data loss** | Remove OneNote cached local data, including content not yet synced to the cloud |
+| `reset_onedrive` | Reset | OneDrive repair checks + cache/container/keychain cleanup |
+| `reset_teams` | Reset | Teams reset with installed-app validation/repair + Teams cache/container/keychain cleanup; leaves current Teams absent when no main app bundle exists |
+| `reset_teams_force` | Reset | Force-remove installed Teams variants, install current Teams even when its main bundle was absent, then perform Teams cache/container/keychain cleanup |
+| `reset_autoupdate` | Reset | Reset MAU prefs/cache and reinstall/update MAU when applicable |
+| `reset_license` | Reset | Reset Office licensing files and core Office identity data |
+| `reset_credentials` | Reset | Remove Office licensing/sign-in artifacts and token/keychain data; users must sign in again |
+| `remove_office` | **Data loss** | Full Microsoft 365 removal: Office, OneDrive, and Teams apps; user, system, and managed Microsoft preferences; Office containers and group containers (including local Outlook profile data); MAU, licensing helper, and Teams audio driver; `/Library/Logs/Microsoft` and `~/Library/Application Support/Microsoft`; auto-adds `remove_skypeforbusiness`. Does not remove Microsoft Defender |
+| `remove_skypeforbusiness` | Removal | Remove Skype for Business app/data/keychain entries |
+| `remove_defender` | **Security** | Remove Microsoft Defender app/data/receipts; fails the run (exit `20`) if the uninstaller fails or the app remains |
+| `remove_acrobat_addin` | Removal | Remove Adobe Acrobat add-in payloads from Word, Excel, and PowerPoint startup folders in both system and user Office content paths |
+| `remove_zoomplugin` | Removal | Remove Zoom Outlook plugin and related metadata |
+| `remove_webexpt` | Removal | Remove WebEx Productivity Tools and related metadata |
 
 ## Dependency Rules
 
@@ -141,7 +163,7 @@ The script enforces package-equivalent dependencies:
 - Selecting `reset_credentials` suppresses `reset_license`
 - Selecting `reset_teams_force` suppresses `reset_teams`
 - `remove_acrobat_addin` runs as a standalone operation with no dependency expansion or suppression
-- `remove_acrobat_addin` waits for Word, Excel, PowerPoint, and Acrobat to quit in interactive modes; `silent` mode force-stops those apps before cleanup
+- `remove_acrobat_addin` waits for Word, Excel, PowerPoint, and Acrobat to quit in interactive modes; `silent` mode consults `silentSkipForceQuitOps`, which skips that operation's force-quit step by default
 - Selecting `remove_office` auto-adds `remove_skypeforbusiness`
 - Selecting `remove_office` suppresses reset-family selections
 
@@ -162,6 +184,16 @@ The script checks both supported Office content roots:
 
 Within each root, cleanup covers both `Startup` and `Startup.localized`, and both `Powerpoint` and `PowerPoint` folder name variants where applicable.
 
+In `silent` mode, the top-level `silentSkipForceQuitOps` array controls whether this operation force-stops Word, Excel, PowerPoint, and Acrobat before cleanup. Its default value skips force-quit:
+
+```zsh
+silentSkipForceQuitOps=(
+    remove_acrobat_addin
+)
+```
+
+Remove `remove_acrobat_addin` from that array to restore force-quit behavior for this operation. This setting affects only the Acrobat add-in preparation path; other selected operations retain their existing process-stop behavior.
+
 ## Destructive Safeguards
 
 In interactive modes, a second confirmation dialog is required when any of these are selected:
@@ -169,8 +201,13 @@ In interactive modes, a second confirmation dialog is required when any of these
 - `remove_office`
 - `remove_outlook_data`
 - `remove_onenote_data`
+- `remove_defender`
 
 If the user cancels this confirmation dialog, the script exits cleanly with code `0`. If the confirmation payload is not acknowledged, the script exits with code `2`.
+
+This confirmation is interactive-only. `silent` mode runs the listed operations with no confirmation, so scope silent policies carefully.
+
+In `self-service` mode, an empty `--operations` / `$5` allowlist exits `10` during preflight unless `--allow-all-operations` / `$6` is set, so a misconfigured Self Service policy cannot expose `remove_office` or `remove_defender` to every user.
 
 ## Execution Order
 
@@ -200,19 +237,37 @@ The following operations include app repair checks and may download/reinstall fr
 Repair pipeline includes:
 
 - URL resolution
-- download
+- download into a root-private per-run staging directory (`mktemp -d` under the script's root-owned work directory, removed on exit)
+- regular-file and root-ownership check on the downloaded package
 - content-length sanity check
 - Microsoft signature verification
+- a damaged or version-mismatched app bundle is moved aside (root-private, outside the run directory) only after the replacement package has downloaded and verified
 - `installer -pkg ... -target /`
+- for Teams, OneDrive, and MAU, the new bundle must pass `codesign -vv --deep` before the original is released
+- the original bundle is restored when the install fails, leaves nothing at the original path, or (Teams, OneDrive, and MAU) fails codesign; otherwise it is discarded
+
+When MAU is on a `Custom` channel, the `ManifestServer` preference and the manifest's `FullUpdaterLocation` must use `https://`; otherwise each is ignored with a `WARNING` and the standard Microsoft download is used.
+
+Microsoft packages must pass `pkgutil --check-signature` (exit status and an Apple-issued distribution certificate) and be signed by `Microsoft Corporation (UBF8T346G9)`.
+
+When an app's version cannot be read, the script does not assume the legacy 2016 generation and skips version-based reinstalls; the code-signature check decides whether a reinstall is needed.
+
+Teams reinstalls retry a failed package download up to five times; a damaged or outdated Teams bundle stays in place until a replacement package verifies, and is restored if that install fails.
 
 For `reset_word`, `reset_excel`, `reset_powerpoint`, `reset_outlook`, and `reset_onenote`, a run performs repair/reinstall or configuration cleanup, not both. When one of those apps is repaired, cleanup is deferred to a later run. Because `reset_factory` expands to those operations, it inherits the same behavior for those app-specific resets.
 
 ## Examples
 
-Interactive (default):
+Interactive (default `self-service` mode) with an explicit allowlist; without `--operations`, `self-service` exits `10` during preflight:
 
 ```bash
-sudo ./Microsoft-365-Reset.zsh
+sudo ./Microsoft-365-Reset.zsh --operations reset_word,reset_excel,reset_powerpoint
+```
+
+Admin-only interactive run that shows every operation, including `remove_office` and `remove_defender`:
+
+```bash
+sudo ./Microsoft-365-Reset.zsh --allow-all-operations
 ```
 
 Interactive run with chooser limited to Outlook-safe reset operations:
@@ -239,7 +294,7 @@ sudo ./Microsoft-365-Reset.zsh \
   --operations remove_acrobat_addin
 ```
 
-Local dry invocation for parser checks (will fail root preflight by design):
+Local parser check without `sudo` (not a dry run; fails root preflight by design):
 
 ```bash
 ./Microsoft-365-Reset.zsh --mode silent --operations reset_factory
@@ -263,7 +318,7 @@ For repo maintenance, `scripts/mofa-consult.zsh` can sync a sibling `../MOFA` ch
 
 MOFA is the primary behavior baseline for this repo. Use the package-era reference as secondary context for retained chooser logic, dependency history, and operations that do not have a current MOFA community-script equivalent. If this repo intentionally keeps package-era behavior instead of MOFA behavior, treat that as a documented divergence that needs a defensible reason.
 
-By default, the sync step fast-forwards the sibling MOFA checkout's local `main` branch to `upstream/main` and pushes `origin/main` to keep your fork current. Use `--no-push-origin` to skip the fork push.
+By default, the sync step fast-forwards the sibling MOFA checkout's local `main` branch to `upstream/main` without pushing. Use `--push-origin` to also push `origin/main` and keep your fork current. Reports are written to your per-user temp folder (`$TMPDIR`) by default, and the helper refuses to write through a symlinked `--output` path.
 
 Default sync + report:
 
@@ -278,18 +333,19 @@ The package-era comparison is optional. When `Resources/Microsoft_Office_Reset_2
 Generate a report from the current local MOFA checkout without syncing:
 
 ```bash
-./scripts/mofa-consult.zsh --report-only --mofa-repo ../MOFA --output /var/tmp/M365R-MOFA-report.md
+./scripts/mofa-consult.zsh --report-only --mofa-repo ../MOFA --output "${TMPDIR}M365R-MOFA-report.md"
 ```
 
-Sync local `main` from `upstream/main` without pushing your fork:
+Sync local `main` from `upstream/main` and push your fork:
 
 ```bash
-./scripts/mofa-consult.zsh --sync-only --no-push-origin
+./scripts/mofa-consult.zsh --sync-only --push-origin
 ```
 
 The report uses `Covered`, `Candidate inclusion`, `Intentional divergence`, `Local-only operation`, and `Skipped` classifications, and compares:
 
 - MOFA community-maintained reset scripts against local operation coverage
+- Newly discovered MOFA community scripts that have no local operation mapping
 - Package-era Distribution choices retained in the unified workflow even when there is no current MOFA community-script mapping, when the local expanded package reference is available
 - MOFA stable feed metadata from `latest_raw_files/macos_standalone_latest.json`
 - Hard-coded local repair links, MAU application IDs, and current minimum-version thresholds for Teams and MAU
@@ -303,8 +359,14 @@ Local operation coverage requires the operation ID, implementation function, dis
 |---|---|
 | `0` | Success, including intentional user cancellation in interactive modes |
 | `2` | No operations provided in `silent` mode or destructive confirmation was not acknowledged |
-| `10` | Preflight/validation failure |
-| `20` | One or more operations failed |
+| `10` | Preflight/validation failure, including an empty `self-service` allowlist without `--allow-all-operations` / `$6` |
+| `20` | One or more operations failed, including any path an operation could not remove |
+
+Every run that reaches preflight ends with a `NOTICE` log line summarizing succeeded and failed operation counts, failed operation IDs, elapsed time, and the exit code, so `silent` runs are auditable without the completion dialog:
+
+```text
+M365R (2.0.1): 2026-10-03 10:34:46  [NOTICE] Exiting: 9 succeeded, 1 failed (reset_teams); Elapsed Time: 0h:1m:12s; exit code 20
+```
 
 ## Validation
 
@@ -316,6 +378,18 @@ zsh -n ./Microsoft-365-Reset.zsh
 
 ## Safety Notes
 
-- This script performs destructive actions when requested.
-- `remove_office`, `remove_outlook_data`, and `remove_onenote_data` can permanently remove local data.
+- **This script is potentially destructive.** See the caution at the top of this README before scoping any policy.
+- `remove_office`, `remove_outlook_data`, and `remove_onenote_data` can permanently remove local data; `remove_defender` removes security tooling.
+- `remove_office` deletes `/Library/Logs/Microsoft`, which Defender and Intune also use; expect those local logs to be gone after a full removal.
+- Reset operations force-quit Microsoft apps; ask users to save their work first, especially for `silent` runs.
+- `reset_credentials` and `reset_factory` delete keychain sign-in items; users must sign in again.
+- Removals under the console user's home folder are refused when a parent directory resolves through a symlink, so a user-planted link cannot redirect a root deletion outside the home folder; refusals are logged as `WARNING` lines.
+- Removals under the console user's home folder and per-user temp folder run as the console user, not root; root-owned folders left in the home folder (for example, by older tools) are not removed, are logged as `WARNING` lines, and fail the operation (exit `20`). Per-user temp-folder cleanup is best-effort and never fails an operation.
+- Reset operations leave profile-delivered `/Library/Managed Preferences` files to your MDM; only `remove_office` removes them.
+- `reset_teams` / `reset_teams_force` fail (exit `20`) before removing Teams data when moving Teams backgrounds to the archive or staging fails, so a failed preservation step never deletes them; backgrounds under a symlinked parent directory are skipped with a `WARNING` and cleanup continues.
+- Teams backgrounds are archived, staged, and restored as the console user; if a restore fails, they stay in a `M365R_Teams_Backgrounds.*` folder in the user's home folder (opened for the user in interactive modes) and survive a restart.
+- Constrain each Self Service policy with `--operations` / `$5`. Reserve `--allow-all-operations` / `$6` for admin-only policies, and exclude `remove_defender` unless your security team approves.
+- `test` mode is not a dry run.
+- Recovery: apps can be reinstalled, and MAU, Teams, and OneDrive state rebuilds itself; deleted local mail, unsynced OneNote content, keychain items, removed Defender, and deleted logs cannot be recovered without backups or reinstallation.
+- Deploy `Microsoft-365-Reset.zsh` directly. Wrappers generated by `Resources/createSelfExtracting.zsh` are build artifacts and are not tracked; generated wrappers extract into a private `mktemp -d` directory and forward all arguments.
 - Test in a lab/VM before broad deployment.
